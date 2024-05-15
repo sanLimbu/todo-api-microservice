@@ -97,3 +97,89 @@ func (t *TaskHandler) delete(w http.ResponseWriter, r *http.Request) {
 type ReadTaskResponse struct {
 	Task Task `json:"task"`
 }
+
+func (t *TaskHandler) task(w http.ResponseWriter, r *http.Request) {
+	id, _ := mux.Vars(r)["id"]
+	task, err := t.svc.Task(r.Context(), id)
+	if err != nil {
+		renderErrorResponse(r.Context(), w, "find failed", err)
+		return
+	}
+
+	renderResponse(w, &ReadTaskResponse{
+		Task: Task{
+			ID:          task.ID,
+			Description: task.Description,
+			Priority:    NewPriority(task.Priority),
+			Dates:       NewDates(task.Dates),
+			IsDone:      task.IsDone,
+		},
+	}, http.StatusOK)
+}
+
+//UpdateTasksRequest defines the request used for updating a task
+type UpdateTasksRequest struct {
+	Description string   `json:"description"`
+	IsDone      bool     `json:"is_done"`
+	Priority    Priority `json:"priority"`
+	Dates       Dates    `json:"dates"`
+}
+
+func (t *TaskHandler) update(w http.ResponseWriter, r *http.Request) {
+	var req UpdateTasksRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		renderErrorResponse(r.Context(), w, "invalid request", internal.WrapErrorf(err, internal.ErrorCodeInvalidArgument, "json decoder"))
+		return
+	}
+	defer r.Body.Close()
+
+	id, _ := mux.Vars(r)["id"]
+	err := t.svc.Update(r.Context(), id, req.Description, req.Priority.Convert(), req.Dates.Convert(), req.IsDone)
+	if err != nil {
+		renderErrorResponse(r.Context(), w, "update failed", err)
+		return
+	}
+	renderResponse(w, &struct{}{}, http.StatusOK)
+}
+
+//SearchTasksRequest defines the request used for searching tasks
+type SearchTasksRequest struct {
+	Description *string   `json:"description"`
+	Priority    *Priority `json:"priority"`
+	IsDone      *bool     `json:"is_done"`
+}
+
+//SearchTasksResponse defines the response returned back after searching for any task
+type SearchTasksResponse struct {
+	Tasks []Task `json:"tasks"`
+}
+
+func (t *TaskHandler) search(w http.ResponseWriter, r *http.Request) {
+	var req SearchTasksRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		renderErrorResponse(r.Context(), w, "invalid request", internal.WrapErrorf(err, internal.ErrorCodeInvalidArgument, "json decoder"))
+		return
+	}
+	defer r.Body.Close()
+
+	var priority *internal.Priority
+	if req.Priority != nil {
+		res := req.Priority.Convert()
+		priority = &res
+	}
+
+	tasks, err := t.svc.By(r.Context(), req.Description, priority, req.IsDone)
+	if err != nil {
+		renderErrorResponse(r.Context(), w, "search failed", err)
+		return
+	}
+	res := make([]Task, len(tasks))
+	for i, task := range tasks {
+		res[i].ID = task.ID
+		res[i].Description = task.Description
+		res[i].Priority = NewPriority(task.Priority)
+		res[i].Dates = NewDates(task.Dates)
+	}
+	renderResponse(w, &SearchTasksResponse{Tasks: res}, http.StatusOK)
+
+}
