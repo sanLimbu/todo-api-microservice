@@ -6,6 +6,7 @@ require go.opentelemetry.io/otel/trace v0.19.0
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/elastic/go-elasticsearch/v7 v7.17.10
 	github.com/gorilla/mux v1.8.1
 	go.opentelemetry.io/otel v0.19.0 // indirect
 )
