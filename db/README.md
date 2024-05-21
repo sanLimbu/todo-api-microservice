@@ -14,7 +14,7 @@ docker run \
   -e POSTGRES_HOST_AUTH_METHOD=trust \
   -e POSTGRES_USER=user \
   -e POSTGRES_PASSWORD=password \
-  -e POSTGRES_DB=dbname \
+  -e POSTGRES_DB=todo \
   -p 5432:5432 \
   postgres:12.5-alpine
 ```
@@ -25,10 +25,12 @@ Run:
 
 ```
 migrate -path db/migrations/ -database postgres://user:password@localhost:5432/dbname?sslmode=disable up
+migrate -path db/migrations/ -database postgres://postgres:itsasecret@localhost:5432/postgres?sslmode=disable up
 ```
 
 Create:
 
 ```
 migrate create -ext sql -dir db/migrations/ <migration name>
+ migrate create -ext sql -dir db/migrations/ create_tasks_tables
 ```
