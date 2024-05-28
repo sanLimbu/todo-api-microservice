@@ -8,9 +8,9 @@ import (
 
 	"github.com/sanLimbu/todo-api/internal"
 	"github.com/streadway/amqp"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/semconv"
-	"go.opentelemetry.io/otel/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.15.0"
 )
 
 //Task represents the repository used for publishing Task records.
@@ -41,7 +41,11 @@ func (t *Task) Updated(ctx context.Context, task internal.Task) error {
 }
 
 func (t *Task) publish(ctx context.Context, spanName, routingKey string, e interface{}) error {
-	ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, spanName)
+
+	tracer := otel.Tracer("rabbitmq")
+	ctx, span := tracer.Start(ctx, spanName)
+
+	//ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, spanName)
 	defer span.End()
 
 	span.SetAttributes(
@@ -50,7 +54,7 @@ func (t *Task) publish(ctx context.Context, spanName, routingKey string, e inter
 			Value: attribute.StringValue("rabbitmq"),
 		},
 		attribute.KeyValue{
-			Key:   semconv.MessagingRabbitMQRoutingKeyKey,
+			Key:   semconv.MessagingRabbitmqRoutingKeyKey,
 			Value: attribute.StringValue(routingKey),
 		},
 	)

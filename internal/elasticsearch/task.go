@@ -11,7 +11,7 @@ import (
 	esv7 "github.com/elastic/go-elasticsearch/v7"
 	esv7api "github.com/elastic/go-elasticsearch/v7/esapi"
 	"github.com/sanLimbu/todo-api/internal"
-	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel"
 )
 
 //Task represents the repository used for interacting with Task records
@@ -39,7 +39,11 @@ func NewTask(client *esv7.Client) *Task {
 
 //Index creates or updates a task in an index.
 func (t *Task) Index(ctx context.Context, task internal.Task) error {
-	ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, "Task.index")
+
+	tracer := otel.Tracer("elasticsearch")
+	ctx, span := tracer.Start(ctx, "Task.index")
+
+	//ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, "Task.index")
 	defer span.End()
 
 	body := indexedTask{
@@ -79,7 +83,11 @@ func (t *Task) Index(ctx context.Context, task internal.Task) error {
 
 //Delete removes a task from the index
 func (t *Task) Delete(ctx context.Context, id string) error {
-	ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, "Task.Delete")
+
+	tracer := otel.Tracer("elasticsearch")
+	ctx, span := tracer.Start(ctx, "Task.Delete")
+
+	//ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, "Task.Delete")
 	defer span.End()
 
 	req := esv7api.DeleteRequest{
@@ -106,7 +114,10 @@ func (t *Task) Delete(ctx context.Context, id string) error {
 //Search returns tasks matching a query
 func (t *Task) Search(ctx context.Context, description *string, priority *internal.Priority, isDone *bool) ([]internal.Task, error) {
 
-	ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, "Task.Search")
+	tracer := otel.Tracer("elasticsearch")
+	ctx, span := tracer.Start(ctx, "Task.Search")
+
+	//ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, "Task.Search")
 	defer span.End()
 
 	if description == nil && priority == nil && isDone == nil {

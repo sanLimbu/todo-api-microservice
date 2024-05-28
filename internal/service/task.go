@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel"
 
 	"github.com/sanLimbu/todo-api/internal"
 )
@@ -48,7 +48,11 @@ func NewTask(repo TaskRepository, search TaskSearchRepository, msgBroker TaskMes
 
 // By searches Tasks matching the received values.
 func (t *Task) By(ctx context.Context, description *string, priority *internal.Priority, isDone *bool) ([]internal.Task, error) {
-	ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, "Task.By")
+
+	tracer := otel.Tracer("By")
+	ctx, span := tracer.Start(ctx, "Task.By")
+
+	//ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, "Task.By")
 	defer span.End()
 
 	res, err := t.search.Search(ctx, description, priority, isDone)
@@ -62,7 +66,10 @@ func (t *Task) By(ctx context.Context, description *string, priority *internal.P
 //Create stores a new record
 func (t *Task) Create(ctx context.Context, description string, priority internal.Priority, dates internal.Dates) (internal.Task, error) {
 
-	ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, "Task.Create")
+	tracer := otel.Tracer("Create")
+	ctx, span := tracer.Start(ctx, "Task.Create")
+
+	//ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, "Task.Create")
 	defer span.End()
 
 	task, err := t.repo.Create(ctx, description, priority, dates)
@@ -75,7 +82,11 @@ func (t *Task) Create(ctx context.Context, description string, priority internal
 
 //Delete removes an existing Task from the datastore
 func (t *Task) Delete(ctx context.Context, id string) error {
-	ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, "Task.Delete")
+
+	tracer := otel.Tracer("Delete")
+	ctx, span := tracer.Start(ctx, "Task.Delete")
+
+	//ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, "Task.Delete")
 	defer span.End()
 
 	if err := t.repo.Delete(ctx, id); err != nil {
@@ -87,7 +98,11 @@ func (t *Task) Delete(ctx context.Context, id string) error {
 
 // Task gets an existing Task from the datastore.
 func (t *Task) Task(ctx context.Context, id string) (internal.Task, error) {
-	ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, "Task.Task")
+
+	tracer := otel.Tracer("Task")
+	ctx, span := tracer.Start(ctx, "Task.Task")
+
+	//ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, "Task.Task")
 	defer span.End()
 
 	task, err := t.repo.Find(ctx, id)
@@ -100,7 +115,11 @@ func (t *Task) Task(ctx context.Context, id string) (internal.Task, error) {
 
 // Update updates an existing Task in the datastore.
 func (t *Task) Update(ctx context.Context, id string, description string, priority internal.Priority, dates internal.Dates, isDone bool) error {
-	ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, "Task.Update")
+
+	tracer := otel.Tracer("Update")
+	ctx, span := tracer.Start(ctx, "Task.Update")
+
+	//ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, "Task.Update")
 	defer span.End()
 
 	if err := t.repo.Update(ctx, id, description, priority, dates, isDone); err != nil {

@@ -7,7 +7,7 @@ import (
 	"net/http"
 
 	"github.com/sanLimbu/todo-api/internal"
-	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel"
 )
 
 //ErrorResponse represents a response containing an error message
@@ -31,7 +31,11 @@ func renderErrorResponse(ctx context.Context, w http.ResponseWriter, msg string,
 		}
 	}
 	if err != nil {
-		_, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, "rest.renderErrorResponse")
+
+		tracer := otel.Tracer("rest")
+		_, span := tracer.Start(ctx, "rest.renderErrorResponse")
+
+		//_, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, "rest.renderErrorResponse")
 		defer span.End()
 
 		span.RecordError(err)

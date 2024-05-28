@@ -5,9 +5,9 @@ import (
 	"context"
 	"encoding/json"
 
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/semconv"
-	"go.opentelemetry.io/otel/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.16.0"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/sanLimbu/todo-api/internal"
@@ -48,7 +48,10 @@ func (t *Task) Updated(ctx context.Context, task internal.Task) error {
 
 func (t *Task) pubish(ctx context.Context, spanName, msgType string, task internal.Task) error {
 
-	ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, spanName)
+	tracer := otel.Tracer("kafka")
+	ctx, span := tracer.Start(ctx, spanName)
+
+	//ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, spanName)
 	defer span.End()
 
 	span.SetAttributes(
