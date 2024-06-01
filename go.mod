@@ -1,8 +1,8 @@
 module github.com/sanLimbu/todo-api
 
-go 1.22.2
+go 1.21
 
-require go.opentelemetry.io/otel/trace v1.27.0
+require go.opentelemetry.io/otel/trace v1.27.0 // indirect
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -59,6 +59,7 @@ require (
 	go.opentelemetry.io/otel v1.27.0
 	go.opentelemetry.io/otel/exporters/jaeger v1.17.0
 	go.opentelemetry.io/otel/exporters/prometheus v0.49.0
+	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.27.0
 	go.opentelemetry.io/otel/sdk v1.27.0
 	go.opentelemetry.io/otel/sdk/metric v1.27.0
 	go.uber.org/zap v1.27.0
