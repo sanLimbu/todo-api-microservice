@@ -2,17 +2,22 @@ package service
 
 import (
 	"context"
-	"fmt"
+	"time"
 
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 
+	"github.com/mercari/go-circuitbreaker"
 	"github.com/sanLimbu/todo-api/internal"
 )
+
+const otelName = "github.com/sanLimbu/todo-api/internal/service"
 
 //TaskRepository defines the datasource handeling persisting Task Records
 
 type TaskRepository interface {
-	Create(ctx context.Context, description string, priority internal.Priority, dates internal.Dates) (internal.Task, error)
+	Create(ctx context.Context, args internal.CreateParams) (internal.Task, error)
 	Delete(ctx context.Context, id string) error
 	Find(ctx context.Context, id string) (internal.Task, error)
 	Update(ctx context.Context, id string, description string, priority internal.Priority, dates internal.Dates, isDone bool) error
@@ -20,7 +25,7 @@ type TaskRepository interface {
 
 //TaskSearchRepository defines the datastore handling searching Task records
 type TaskSearchRepository interface {
-	Search(ctx context.Context, description *string, priority *internal.Priority, isDone *bool) ([]internal.Task, error)
+	Search(ctx context.Context, args internal.SearchParams) (internal.SearchResults, error)
 }
 
 //TaskMessageBrokerRepository defines the datasource handling persisting Searchable Task Records
@@ -35,46 +40,62 @@ type Task struct {
 	repo      TaskRepository
 	search    TaskSearchRepository
 	msgBroker TaskMessageBrokerRepository
+	cb        *circuitbreaker.CircuitBreaker
 }
 
 //NewTask
-func NewTask(repo TaskRepository, search TaskSearchRepository, msgBroker TaskMessageBrokerRepository) *Task {
+func NewTask(logger *zap.Logger, repo TaskRepository, search TaskSearchRepository, msgBroker TaskMessageBrokerRepository) *Task {
 	return &Task{
 		repo:      repo,
 		search:    search,
 		msgBroker: msgBroker,
+		cb: circuitbreaker.New(
+			circuitbreaker.WithOpenTimeout(time.Minute*2),
+			circuitbreaker.WithTripFunc(circuitbreaker.NewTripFuncConsecutiveFailures(3)),
+			circuitbreaker.WithOnStateChangeHookFn(func(oldState, newState circuitbreaker.State) {
+				logger.Info("state changed",
+					zap.String("old", string(oldState)),
+					zap.String("new", string(newState)),
+				)
+			}),
+		),
 	}
 }
 
 // By searches Tasks matching the received values.
-func (t *Task) By(ctx context.Context, description *string, priority *internal.Priority, isDone *bool) ([]internal.Task, error) {
+func (t *Task) By(ctx context.Context, args internal.SearchParams) (_ internal.SearchResults, err error) {
 
-	tracer := otel.Tracer("By")
-	ctx, span := tracer.Start(ctx, "Task.By")
+	defer newOTELSpan(ctx, "Task.By").End()
 
-	//ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, "Task.By")
-	defer span.End()
+	if !t.cb.Ready() {
+		return internal.SearchResults{}, internal.NewErrorf(internal.ErrorCodeUnkown, "service not available")
 
-	res, err := t.search.Search(ctx, description, priority, isDone)
+	}
+
+	defer func() {
+		err = t.cb.Done(ctx, err)
+	}()
+
+	res, err := t.search.Search(ctx, args)
 	if err != nil {
-		return nil, fmt.Errorf("search: %w", err)
+		return internal.SearchResults{}, internal.WrapErrorf(err, internal.ErrorCodeUnkown, "Search")
 	}
 
 	return res, nil
 }
 
 //Create stores a new record
-func (t *Task) Create(ctx context.Context, description string, priority internal.Priority, dates internal.Dates) (internal.Task, error) {
+func (t *Task) Create(ctx context.Context, params internal.CreateParams) (internal.Task, error) {
 
-	tracer := otel.Tracer("Create")
-	ctx, span := tracer.Start(ctx, "Task.Create")
+	defer newOTELSpan(ctx, "Task.Create").End()
 
-	//ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, "Task.Create")
-	defer span.End()
+	if err := params.Validate(); err != nil {
+		return internal.Task{}, internal.WrapErrorf(err, internal.ErrorCodeInvalidArgument, "params.Validate")
+	}
 
-	task, err := t.repo.Create(ctx, description, priority, dates)
+	task, err := t.repo.Create(ctx, params)
 	if err != nil {
-		return internal.Task{}, fmt.Errorf("repo created: %w", err)
+		return internal.Task{}, internal.WrapErrorf(err, internal.ErrorCodeUnkown, "repo.Created")
 	}
 	_ = t.msgBroker.Created(ctx, task)
 	return task, nil
@@ -83,14 +104,10 @@ func (t *Task) Create(ctx context.Context, description string, priority internal
 //Delete removes an existing Task from the datastore
 func (t *Task) Delete(ctx context.Context, id string) error {
 
-	tracer := otel.Tracer("Delete")
-	ctx, span := tracer.Start(ctx, "Task.Delete")
-
-	//ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, "Task.Delete")
-	defer span.End()
+	defer newOTELSpan(ctx, "Task.Delete").End()
 
 	if err := t.repo.Delete(ctx, id); err != nil {
-		return fmt.Errorf("repo deleted: %w", err)
+		return internal.WrapErrorf(err, internal.ErrorCodeUnkown, "Delete")
 	}
 	_ = t.msgBroker.Deleted(ctx, id)
 	return nil
@@ -99,15 +116,11 @@ func (t *Task) Delete(ctx context.Context, id string) error {
 // Task gets an existing Task from the datastore.
 func (t *Task) Task(ctx context.Context, id string) (internal.Task, error) {
 
-	tracer := otel.Tracer("Task")
-	ctx, span := tracer.Start(ctx, "Task.Task")
-
-	//ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, "Task.Task")
-	defer span.End()
+	defer newOTELSpan(ctx, "Task.Task").End()
 
 	task, err := t.repo.Find(ctx, id)
 	if err != nil {
-		return internal.Task{}, fmt.Errorf("repo find: %w", err)
+		return internal.Task{}, internal.WrapErrorf(err, internal.ErrorCodeUnkown, "Find")
 	}
 
 	return task, nil
@@ -116,18 +129,12 @@ func (t *Task) Task(ctx context.Context, id string) (internal.Task, error) {
 // Update updates an existing Task in the datastore.
 func (t *Task) Update(ctx context.Context, id string, description string, priority internal.Priority, dates internal.Dates, isDone bool) error {
 
-	tracer := otel.Tracer("Update")
-	ctx, span := tracer.Start(ctx, "Task.Update")
-
-	//ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, "Task.Update")
-	defer span.End()
+	defer newOTELSpan(ctx, "Task.Update").End()
 
 	if err := t.repo.Update(ctx, id, description, priority, dates, isDone); err != nil {
-		return fmt.Errorf("repo update: %w", err)
+		return internal.WrapErrorf(err, internal.ErrorCodeUnkown, "repo.update")
 	}
-
 	{
-		// XXX: This will be improved when Kafka events are introduced in future episodes
 		task, err := t.repo.Find(ctx, id)
 		if err == nil {
 			_ = t.msgBroker.Updated(ctx, task) // XXX: Ignoring errors on purpose
@@ -135,4 +142,9 @@ func (t *Task) Update(ctx context.Context, id string, description string, priori
 	}
 
 	return nil
+}
+
+func newOTELSpan(ctx context.Context, name string) trace.Span {
+	_, span := otel.Tracer(otelName).Start(ctx, name)
+	return span
 }
