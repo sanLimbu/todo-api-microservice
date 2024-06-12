@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"time"
 
@@ -12,7 +11,11 @@ import (
 	esv7api "github.com/elastic/go-elasticsearch/v7/esapi"
 	"github.com/sanLimbu/todo-api/internal"
 	"go.opentelemetry.io/otel"
+	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
+	"go.opentelemetry.io/otel/trace"
 )
+
+const otelName = "github.com/sanLimbu/todo-api-microservice/internal/elasticsearch"
 
 //Task represents the repository used for interacting with Task records
 type Task struct {
@@ -40,11 +43,7 @@ func NewTask(client *esv7.Client) *Task {
 //Index creates or updates a task in an index.
 func (t *Task) Index(ctx context.Context, task internal.Task) error {
 
-	tracer := otel.Tracer("elasticsearch")
-	ctx, span := tracer.Start(ctx, "Task.index")
-
-	//ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, "Task.index")
-	defer span.End()
+	defer newOTELSpan(ctx, "Task.Index").End()
 
 	body := indexedTask{
 		ID:          task.ID,
@@ -84,11 +83,7 @@ func (t *Task) Index(ctx context.Context, task internal.Task) error {
 //Delete removes a task from the index
 func (t *Task) Delete(ctx context.Context, id string) error {
 
-	tracer := otel.Tracer("elasticsearch")
-	ctx, span := tracer.Start(ctx, "Task.Delete")
-
-	//ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, "Task.Delete")
-	defer span.End()
+	defer newOTELSpan(ctx, "Task.Delete").End()
 
 	req := esv7api.DeleteRequest{
 		Index:      t.index,
@@ -112,39 +107,35 @@ func (t *Task) Delete(ctx context.Context, id string) error {
 }
 
 //Search returns tasks matching a query
-func (t *Task) Search(ctx context.Context, description *string, priority *internal.Priority, isDone *bool) ([]internal.Task, error) {
+func (t *Task) Search(ctx context.Context, args internal.SearchParams) (internal.SearchResults, error) {
 
-	tracer := otel.Tracer("elasticsearch")
-	ctx, span := tracer.Start(ctx, "Task.Search")
+	defer newOTELSpan(ctx, "Task.Search").End()
 
-	//ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, "Task.Search")
-	defer span.End()
-
-	if description == nil && priority == nil && isDone == nil {
-		return nil, nil
+	if args.IsZero() {
+		return internal.SearchResults{}, nil
 	}
 
 	should := make([]interface{}, 0, 3)
-	if description != nil {
+	if args.Description != nil {
 		should = append(should, map[string]interface{}{
 			"match": map[string]interface{}{
-				"description": *description,
+				"description": *args.Description,
 			},
 		})
 	}
 
-	if priority != nil {
+	if args.Priority != nil {
 		should = append(should, map[string]interface{}{
 			"match": map[string]interface{}{
-				"priority": *priority,
+				"priority": *args.Priority,
 			},
 		})
 	}
 
-	if isDone != nil {
+	if args.IsDone != nil {
 		should = append(should, map[string]interface{}{
 			"match": map[string]interface{}{
-				"is_done": *isDone,
+				"is_done": *args.IsDone,
 			},
 		})
 	}
@@ -165,9 +156,17 @@ func (t *Task) Search(ctx context.Context, description *string, priority *intern
 		}
 	}
 
+	query["sort"] = []interface{}{
+		"_score",
+		map[string]interface{}{"id": "asc"},
+	}
+
+	query["from"] = args.From
+	query["size"] = args.Size
+
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(query); err != nil {
-		return nil, internal.WrapErrorf(err, internal.ErrorCodeUnkown, "json.NewEncode.Encode")
+		return internal.SearchResults{}, internal.WrapErrorf(err, internal.ErrorCodeUnkown, "json.NewEncode.Encode")
 	}
 
 	req := esv7api.SearchRequest{
@@ -177,16 +176,19 @@ func (t *Task) Search(ctx context.Context, description *string, priority *intern
 
 	resp, err := req.Do(ctx, t.client)
 	if err != nil {
-		return nil, internal.WrapErrorf(err, internal.ErrorCodeUnkown, "SearchRequest.Do")
+		return internal.SearchResults{}, internal.WrapErrorf(err, internal.ErrorCodeUnkown, "SearchRequest.Do")
 	}
 	defer resp.Body.Close()
 
 	if resp.IsError() {
-		return nil, internal.NewErrorf(internal.ErrorCodeUnkown, "SearchRequest.Do %d", resp.StatusCode)
+		return internal.SearchResults{}, internal.NewErrorf(internal.ErrorCodeUnkown, "SearchRequest.Do %d", resp.StatusCode)
 	}
 
 	var hits struct {
 		Hits struct {
+			Total struct {
+				Value int64 `json:"value"`
+			} `json:"total"`
 			Hits []struct {
 				Source indexedTask `json:"_source"`
 			} `json:"hits"`
@@ -194,8 +196,7 @@ func (t *Task) Search(ctx context.Context, description *string, priority *intern
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&hits); err != nil {
-		fmt.Println("Error here", err)
-		return nil, internal.WrapErrorf(err, internal.ErrorCodeUnkown, "json.NewDecoder.Decode")
+		return internal.SearchResults{}, internal.WrapErrorf(err, internal.ErrorCodeUnkown, "json.NewDecoder.Decode")
 	}
 	res := make([]internal.Task, len(hits.Hits.Hits))
 	for i, hit := range hits.Hits.Hits {
@@ -205,6 +206,15 @@ func (t *Task) Search(ctx context.Context, description *string, priority *intern
 		res[i].Dates.Due = time.Unix(0, hit.Source.DateDue).UTC()
 		res[i].Dates.Start = time.Unix(0, hit.Source.DateStart).UTC()
 	}
-	return res, nil
+	return internal.SearchResults{
+		Task:  res,
+		Total: hits.Hits.Total.Value,
+	}, nil
 
+}
+
+func newOTELSpan(ctx context.Context, name string) trace.Span {
+	_, span := otel.Tracer(otelName).Start(ctx, name)
+	span.SetAttributes(semconv.DBSystemElasticsearch)
+	return span
 }

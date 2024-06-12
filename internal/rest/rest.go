@@ -1,21 +1,24 @@
 package rest
 
 import (
-	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 
+	"github.com/go-chi/render"
+	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/sanLimbu/todo-api/internal"
 	"go.opentelemetry.io/otel"
 )
 
+const otelName = "github.com/sanLimbu/todo-api/internal/rest"
+
 //ErrorResponse represents a response containing an error message
 type ErrorResponse struct {
-	Error string `json:"error"`
+	Error       string            `json:"error"`
+	Validations validation.Errors `json:"validations,omitempty"`
 }
 
-func renderErrorResponse(ctx context.Context, w http.ResponseWriter, msg string, err error) {
+func renderErrorResponse(w http.ResponseWriter, r *http.Request, msg string, err error) {
 	resp := ErrorResponse{Error: msg}
 	status := http.StatusInternalServerError
 
@@ -28,32 +31,30 @@ func renderErrorResponse(ctx context.Context, w http.ResponseWriter, msg string,
 			status = http.StatusNotFound
 		case internal.ErrorCodeInvalidArgument:
 			status = http.StatusBadRequest
+
+			var verrors validation.Errors
+			if errors.As(ierr, &verrors) {
+				resp.Validations = verrors
+			}
+		case internal.ErrorCodeUnkown:
+			fallthrough
+		default:
+			status = http.StatusInternalServerError
 		}
 	}
 	if err != nil {
 
-		tracer := otel.Tracer("rest")
-		_, span := tracer.Start(ctx, "rest.renderErrorResponse")
-
-		//_, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, "rest.renderErrorResponse")
+		_, span := otel.Tracer(otelName).Start(r.Context(), "renderErrorResponse")
 		defer span.End()
 
 		span.RecordError(err)
 	}
-	renderResponse(w, resp, status)
+	render.Status(r, status)
+	render.JSON(w, r, &resp)
 
 }
 
-func renderResponse(w http.ResponseWriter, res interface{}, status int) {
-	w.Header().Set("Content-type", "application/json")
-
-	content, err := json.Marshal(res)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(status)
-	if _, err = w.Write(content); err != nil {
-		// XXX Do something with the error ;)
-	}
+func renderResponse(w http.ResponseWriter, r *http.Request, res interface{}, status int) {
+	render.Status(r, status)
+	render.JSON(w, r, res)
 }

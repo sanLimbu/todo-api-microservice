@@ -6,39 +6,47 @@ import (
 	"errors"
 
 	"github.com/sanLimbu/todo-api/internal"
+	"go.opentelemetry.io/otel"
+	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/sanLimbu/todo-api/internal/postgresql/db"
 
 	"github.com/google/uuid"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
 )
+
+const otelName = "github.com/sanLimbu/todo-api/internal/postgresql"
 
 //Task represents the repository used for interacting with Task records
 type Task struct {
-	q *Queries
+	q *db.Queries
 }
 
 //NewTask instantiates the Task Repository
-func NewTask(db *sql.DB) *Task {
+func NewTask(d db.DBTX) *Task {
 	return &Task{
-		q: New(db),
+		q: db.New(d),
 	}
 }
 
+func newOTELSpan(ctx context.Context, name string) trace.Span {
+	_, span := otel.Tracer(otelName).Start(ctx, name)
+
+	span.SetAttributes(semconv.DBSystemPostgreSQL)
+
+	return span
+}
+
 //Create inserts a new task record.
-func (t *Task) Create(ctx context.Context, description string, priority internal.Priority, dates internal.Dates) (internal.Task, error) {
+func (t *Task) Create(ctx context.Context, params internal.CreateParams) (internal.Task, error) {
 
-	//ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, "Task.Create")
-	tracer := otel.Tracer("postgreSQL")
-	ctx, span := tracer.Start(ctx, "Task.Create")
+	defer newOTELSpan(ctx, "Task.Create").End()
 
-	span.SetAttributes(attribute.String("db.system", "postgresql"))
-	defer span.End()
-
-	id, err := t.q.InsertTask(ctx, InsertTaskParams{
-		Description: description,
-		Priority:    newPriority(priority),
-		StartDate:   newNullTime(dates.Start),
-		DueDate:     newNullTime(dates.Due),
+	id, err := t.q.InsertTask(ctx, db.InsertTaskParams{
+		Description: params.Description,
+		Priority:    newPriority(params.Priority),
+		StartDate:   newNullTime(params.Dates.Start),
+		DueDate:     newNullTime(params.Dates.Due),
 	})
 
 	if err != nil {
@@ -47,9 +55,9 @@ func (t *Task) Create(ctx context.Context, description string, priority internal
 
 	return internal.Task{
 		ID:          id.String(),
-		Description: description,
-		Priority:    priority,
-		Dates:       dates,
+		Description: params.Description,
+		Priority:    params.Priority,
+		Dates:       params.Dates,
 	}, nil
 
 }
@@ -57,12 +65,7 @@ func (t *Task) Create(ctx context.Context, description string, priority internal
 //Delete deletes the existing record matching the id
 func (t *Task) Delete(ctx context.Context, id string) error {
 
-	tracer := otel.Tracer("postgreSQL")
-	ctx, span := tracer.Start(ctx, "Task.Delete")
-
-	//ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, "Task.Delete")
-	span.SetAttributes(attribute.String("db.system", "postgresql"))
-	defer span.End()
+	defer newOTELSpan(ctx, "Task.Delete").End()
 
 	val, err := uuid.Parse(id)
 	if err != nil {
@@ -82,12 +85,7 @@ func (t *Task) Delete(ctx context.Context, id string) error {
 //Find returns the requested task by searching its id.
 func (t *Task) Find(ctx context.Context, id string) (internal.Task, error) {
 
-	tracer := otel.Tracer("postgreSQL")
-	ctx, span := tracer.Start(ctx, "Task.Find")
-
-	//ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, "Task.Find")
-	span.SetAttributes(attribute.String("db.system", "postgresql"))
-	defer span.End()
+	defer newOTELSpan(ctx, "Task.Find").End()
 
 	val, err := uuid.Parse(id)
 	if err != nil {
@@ -123,12 +121,7 @@ func (t *Task) Find(ctx context.Context, id string) (internal.Task, error) {
 // Update updates the existing record with new values.
 func (t *Task) Update(ctx context.Context, id string, description string, priority internal.Priority, dates internal.Dates, isDone bool) error {
 
-	tracer := otel.Tracer("postgreSQL")
-	ctx, span := tracer.Start(ctx, "Task.Update")
-
-	//ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, "Task.Update")
-	span.SetAttributes(attribute.String("db.system", "postgresql"))
-	defer span.End()
+	defer newOTELSpan(ctx, "Task.Find").End()
 
 	// XXX: We will revisit the number of received arguments in future episodes.
 	val, err := uuid.Parse(id)
@@ -136,7 +129,7 @@ func (t *Task) Update(ctx context.Context, id string, description string, priori
 		return internal.WrapErrorf(err, internal.ErrorCodeInvalidArgument, "invalid uuid")
 	}
 
-	if _, err := t.q.UpdateTask(ctx, UpdateTaskParams{
+	if _, err := t.q.UpdateTask(ctx, db.UpdateTaskParams{
 		ID:          val,
 		Description: description,
 		Priority:    newPriority(priority),

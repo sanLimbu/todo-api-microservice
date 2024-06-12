@@ -2,21 +2,18 @@
 
 ## Requirements
 
-```
-go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.14.1
-```
+Install the `tern` tool using [`install_tools`](../bin/install_tools), you can [read more](../internal/tools/) about how those are versioned as well.
 
 ## Local PostgreSQL
 
 ```
 docker run \
-  -d \
   -e POSTGRES_HOST_AUTH_METHOD=trust \
   -e POSTGRES_USER=user \
   -e POSTGRES_PASSWORD=password \
-  -e POSTGRES_DB=todo \
+  -e POSTGRES_DB=dbname \
   -p 5432:5432 \
-  postgres:12.5-alpine
+  postgres:16.2-bullseye
 ```
 
 ## Migrations
@@ -24,13 +21,13 @@ docker run \
 Run:
 
 ```
-migrate -path db/migrations/ -database postgres://user:password@localhost:5432/dbname?sslmode=disable up
-migrate -path db/migrations/ -database postgres://postgres:itsasecret@localhost:5432/postgres?sslmode=disable up
+tern migrate \
+    --migrations "db/migrations/" \
+    --conn-string "postgres://user:password@localhost:5432/todo?sslmode=disable"
 ```
 
 Create:
 
 ```
-migrate create -ext sql -dir db/migrations/ <migration name>
- migrate create -ext sql -dir db/migrations/ create_tasks_tables
+tern new -m db/migrations/ <migration name>
 ```

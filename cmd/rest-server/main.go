@@ -14,11 +14,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/didip/tollbooth/v6"
+	"github.com/didip/tollbooth/v6/limiter"
 	esv7 "github.com/elastic/go-elasticsearch/v7"
-	"github.com/gorilla/mux"
-	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
-
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
+	"github.com/riandyrn/otelchi"
 	"github.com/sanLimbu/todo-api/cmd/internal"
+	internaldomain "github.com/sanLimbu/todo-api/internal"
 	"github.com/sanLimbu/todo-api/internal/elasticsearch"
 	envvar "github.com/sanLimbu/todo-api/internal/envar"
 	"github.com/sanLimbu/todo-api/internal/kafka"
@@ -51,39 +54,41 @@ func main() {
 func run(env, address string) (<-chan error, error) {
 	logger, err := zap.NewProduction()
 	if err != nil {
-		return nil, fmt.Errorf("zap.newProduction %w", err)
+		return nil, internaldomain.WrapErrorf(err, internaldomain.ErrorCodeUnkown, "zap.newProduction")
 	}
 
 	if err := envvar.Load(env); err != nil {
-		return nil, fmt.Errorf("envar.load %w", err)
+		return nil, internaldomain.WrapErrorf(err, internaldomain.ErrorCodeUnkown, "envar.load")
+
 	}
 
 	vault, err := internal.NewVaultProvider()
 	if err != nil {
-		return nil, fmt.Errorf("internal.NewVaultProvider %w", &err)
+		return nil, internaldomain.WrapErrorf(err, internaldomain.ErrorCodeUnkown, "internal.NewVaultProvider")
 	}
 
 	conf := envvar.New(vault)
 
 	db, err := internal.NewPostgreSQL(conf)
 	if err != nil {
-		return nil, fmt.Errorf("internal.NewPostgreSQL %w", err)
+		return nil, internaldomain.WrapErrorf(err, internaldomain.ErrorCodeUnkown, "internal.NewPostgreSQl")
+
 	}
 
 	es, err := internal.NewElasticSearch(conf)
 	if err != nil {
-		return nil, fmt.Errorf("internal.NewElasticSearch %w", err)
+		return nil, internaldomain.WrapErrorf(err, internaldomain.ErrorCodeUnkown, "internal.NewElasticSearch")
 	}
 
 	kafka, err := internal.NewKafkaProducer(conf)
 	if err != nil {
-		return nil, fmt.Errorf("internal.NewKafkaProducer %w", err)
+		return nil, internaldomain.WrapErrorf(err, internaldomain.ErrorCodeUnkown, "internal.NewKafkaProducer")
 	}
 
-	// promExporter, err := internal.NewOTExporter(conf)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("internal.NewOTExporter %w", err)
-	// }
+	promExporter, err := internal.NewOTExporter(conf)
+	if err != nil {
+		return nil, internaldomain.WrapErrorf(err, internaldomain.ErrorCodeUnkown, "internal.NewOTExporter")
+	}
 
 	logging := func(h http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -100,8 +105,8 @@ func run(env, address string) (<-chan error, error) {
 		DB:            db,
 		ElasticSearch: es,
 		Kafka:         kafka,
-		//Metrics: promExporter,
-		Middlewares: []mux.MiddlewareFunc{otelmux.Middleware("todo-api-server"), logging},
+		Metrics:       promExporter,
+		Middlewares:   []func(next http.Handler) http.Handler{otelchi.Middleware("todo-api-server"), logging},
 	})
 
 	if err != nil {
@@ -161,13 +166,15 @@ type serverConfig struct {
 	Kafka         *internal.KafkaProducer
 	//RabbitMQ *internal.RabbitMQ
 	Metrics     http.Handler
-	Middlewares []mux.MiddlewareFunc
+	Middlewares []func(next http.Handler) http.Handler
+	Logger      *zap.Logger
 }
 
 func newServer(conf serverConfig) (*http.Server, error) {
-	r := mux.NewRouter()
+	router := chi.NewRouter()
+	router.Use(render.SetContentType(render.ContentTypeJSON))
 	for _, mw := range conf.Middlewares {
-		r.Use(mw)
+		router.Use(mw)
 	}
 
 	repo := postgresql.NewTask(conf.DB)
@@ -179,17 +186,20 @@ func newServer(conf serverConfig) (*http.Server, error) {
 	// }
 
 	msgBroker := kafka.NewTask(conf.Kafka.Producer, conf.Kafka.Topic)
-	svc := service.NewTask(repo, search, msgBroker)
+	svc := service.NewTask(conf.Logger, repo, search, msgBroker)
 
-	rest.RegisterOpenAPI(r)
-	rest.NewTaskHandler(svc).Register(r)
+	rest.RegisterOpenAPI(router)
+	rest.NewTaskHandler(svc).Register(router)
 
 	fsys, _ := fs.Sub(content, "static")
-	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.FS(fsys))))
-	r.Handle("/metrics", conf.Metrics)
+	router.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(fsys))))
+	router.Handle("/metrics", conf.Metrics)
+
+	lmt := tollbooth.NewLimiter(3, &limiter.ExpirableOptions{DefaultExpirationTTL: time.Second})
+	lmtmw := tollbooth.LimitHandler(lmt, router)
 
 	return &http.Server{
-		Handler:           r,
+		Handler:           lmtmw,
 		Addr:              conf.Address,
 		ReadTimeout:       1 * time.Second,
 		ReadHeaderTimeout: 1 * time.Second,

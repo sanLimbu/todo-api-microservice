@@ -5,16 +5,16 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/ghodss/yaml"
-	"github.com/gorilla/mux"
+	"github.com/go-chi/chi/v5"
 )
 
 //go:generate go run ../../cmd/openapi-gen/main.go -path .
-//go:generate oapi-codegen -package openapi3 -generate types  -o ../../pkg/openapi3/task_types.gen.go openapi3.yaml
-//go:generate oapi-codegen -package openapi3 -generate client -o ../../pkg/openapi3/client.gen.go     openapi3.yaml
+//go:generate oapi-codegen -package openapi3 -old-config-style -generate types  -o ../../pkg/openapi3/task_types.gen.go openapi3.yaml
+//go:generate oapi-codegen -package openapi3 -old-config-style -generate client -o ../../pkg/openapi3/client.gen.go     openapi3.yaml
 
 // NewOpenAPI3 instantiates the OpenAPI specification for this service.
-func NewOpenAPI3() openapi3.Swagger {
-	swagger := openapi3.Swagger{
+func NewOpenAPI3() openapi3.T {
+	swagger := openapi3.T{
 		OpenAPI: "3.0.0",
 		Info: &openapi3.Info{
 			Title:       "ToDo API",
@@ -35,6 +35,8 @@ func NewOpenAPI3() openapi3.Swagger {
 			},
 		},
 	}
+
+	swagger.Components = &openapi3.Components{}
 
 	swagger.Components.Schemas = openapi3.Schemas{
 		"Priority": openapi3.NewSchemaRef("",
@@ -106,7 +108,11 @@ func NewOpenAPI3() openapi3.Swagger {
 						WithNullable()).
 					WithPropertyRef("priority", &openapi3.SchemaRef{
 						Ref: "#/components/schemas/Priority",
-					}).WithNullable()),
+					}).WithNullable().
+					WithProperty("from", openapi3.NewInt64Schema().
+						WithDefault(0)).
+					WithProperty("size", openapi3.NewInt64Schema().
+						WithDefault(10))),
 		},
 	}
 
@@ -136,12 +142,16 @@ func NewOpenAPI3() openapi3.Swagger {
 		"SearchTasksResponse": &openapi3.ResponseRef{
 			Value: openapi3.NewResponse().
 				WithDescription("Response returned back after searching for any task.").
-				WithContent(openapi3.NewContentWithJSONSchema(&openapi3.Schema{
-					Type: "array",
-					Items: &openapi3.SchemaRef{
-						Ref: "#/components/schemas/Task",
-					},
-				})),
+				WithContent(openapi3.NewContentWithJSONSchema(openapi3.NewSchema().
+					WithPropertyRef("tasks", &openapi3.SchemaRef{
+						Value: &openapi3.Schema{
+							Type: "array",
+							Items: &openapi3.SchemaRef{
+								Ref: "#/components/schemas/Task",
+							},
+						},
+					}).
+					WithProperty("total", openapi3.NewInt64Schema()))),
 		},
 	}
 
@@ -257,14 +267,14 @@ func NewOpenAPI3() openapi3.Swagger {
 	return swagger
 }
 
-func RegisterOpenAPI(r *mux.Router) {
+func RegisterOpenAPI(router *chi.Mux) {
 	swagger := NewOpenAPI3()
 
-	r.HandleFunc("/openapi3.json", func(w http.ResponseWriter, r *http.Request) {
-		renderResponse(w, &swagger, http.StatusOK)
-	}).Methods(http.MethodGet)
+	router.Get("/openapi3.json", func(w http.ResponseWriter, r *http.Request) {
+		renderResponse(w, r, &swagger, http.StatusOK)
+	})
 
-	r.HandleFunc("/openapi3.yaml", func(w http.ResponseWriter, r *http.Request) {
+	router.Get("/openapi3.yaml", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/x-yaml")
 
 		data, _ := yaml.Marshal(&swagger)
@@ -272,5 +282,5 @@ func RegisterOpenAPI(r *mux.Router) {
 		_, _ = w.Write(data)
 
 		w.WriteHeader(http.StatusOK)
-	}).Methods(http.MethodGet)
+	})
 }
