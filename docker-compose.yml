@@ -12,7 +12,7 @@ services:
       ELASTICSEARCH_URL: "http://elasticsearch:9200"
       JAEGER_ENDPOINT:   "http://jaeger:14268/api/traces"
       KAFKA_HOST:        "kafka"
-      DATABASE_URL: "postgres://user:password@dbname:5432/t?sslmode=disable"
+      DATABASE_URL: "postgres://root:secret@api:5432/t?sslmode=disable"
       # MEMCACHED_HOST:    "memcached:11211"
       # RABBITMQ_URL:      "amqp://guest:guest@rabbitmq:5672/"
       # REDIS_HOST:        "redis:6379"
@@ -58,10 +58,10 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_DB:               "dbname"
-      POSTGRES_HOST_AUTH_METHOD: "trust"
-      POSTGRES_PASSWORD:         "password"
-      POSTGRES_USER:             "user"
+      POSTGRES_DB:               "api"
+      # POSTGRES_HOST_AUTH_METHOD: "trust"
+      POSTGRES_PASSWORD:         "secret"
+      POSTGRES_USER:             "root"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready"]
       interval: 10s

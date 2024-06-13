@@ -45,8 +45,8 @@ func (t *Task) Create(ctx context.Context, params internal.CreateParams) (intern
 	id, err := t.q.InsertTask(ctx, db.InsertTaskParams{
 		Description: params.Description,
 		Priority:    newPriority(params.Priority),
-		StartDate:   newNullTime(params.Dates.Start),
-		DueDate:     newNullTime(params.Dates.Due),
+		StartDate:   newTimeStamp(params.Dates.Start),
+		DueDate:     newTimeStamp(params.Dates.Due),
 	})
 
 	if err != nil {
@@ -133,8 +133,8 @@ func (t *Task) Update(ctx context.Context, id string, description string, priori
 		ID:          val,
 		Description: description,
 		Priority:    newPriority(priority),
-		StartDate:   newNullTime(dates.Start),
-		DueDate:     newNullTime(dates.Due),
+		StartDate:   newTimeStamp(dates.Start),
+		DueDate:     newTimeStamp(dates.Due),
 		Done:        isDone,
 	}); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

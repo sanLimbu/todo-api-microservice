@@ -1,17 +1,20 @@
 package internal
 
 import (
-	"database/sql"
+	"context"
 	"fmt"
 	"log"
 	"net/url"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/sanLimbu/todo-api/internal"
 	envvar "github.com/sanLimbu/todo-api/internal/envar"
 )
 
 //NewPostgresSQL instantiates the PostgreSQL database using configuration defined in environment variables.
 
-func NewPostgreSQL(conf *envvar.Configuration) (*sql.DB, error) {
+func NewPostgreSQL(conf *envvar.Configuration) (*pgxpool.Pool, error) {
 	get := func(v string) string {
 		res, err := conf.Get(v)
 		if err != nil {
@@ -38,15 +41,16 @@ func NewPostgreSQL(conf *envvar.Configuration) (*sql.DB, error) {
 	q.Add("sslmode", databaseSSLMode)
 
 	dsn.RawQuery = q.Encode()
-	db, err := sql.Open("pgx", dsn.String())
+
+	pool, err := pgxpool.New(context.Background(), dsn.String())
 	if err != nil {
-		return nil, fmt.Errorf("sql.Open %w", err)
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeUnkown, "pgxpool.Connect")
 	}
 
-	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("db.pring %w", err)
+	if err := pool.Ping(context.Background()); err != nil {
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeUnkown, "db.Ping")
 	}
 
-	return db, nil
+	return pool, nil
 
 }

@@ -11,10 +11,10 @@ import (
 
 // Defines values for Priority.
 const (
-	Priority_high   Priority = "high"
-	Priority_low    Priority = "low"
-	Priority_medium Priority = "medium"
-	Priority_none   Priority = "none"
+	High   Priority = "high"
+	Low    Priority = "low"
+	Medium Priority = "medium"
+	None   Priority = "none"
 )
 
 // Dates defines model for Dates.
@@ -51,7 +51,10 @@ type ReadTasksResponse struct {
 }
 
 // SearchTasksResponse defines model for SearchTasksResponse.
-type SearchTasksResponse = []Task
+type SearchTasksResponse struct {
+	Tasks *[]Task `json:"tasks,omitempty"`
+	Total *int64  `json:"total,omitempty"`
+}
 
 // CreateTasksRequest defines model for CreateTasksRequest.
 type CreateTasksRequest struct {
@@ -63,8 +66,10 @@ type CreateTasksRequest struct {
 // SearchTasksRequest defines model for SearchTasksRequest.
 type SearchTasksRequest struct {
 	Description *string   `json:"description"`
+	From        *int64    `json:"from,omitempty"`
 	IsDone      *bool     `json:"is_done"`
 	Priority    *Priority `json:"priority,omitempty"`
+	Size        *int64    `json:"size,omitempty"`
 }
 
 // UpdateTasksRequest defines model for UpdateTasksRequest.
@@ -78,8 +83,10 @@ type UpdateTasksRequest struct {
 // SearchTaskJSONBody defines parameters for SearchTask.
 type SearchTaskJSONBody struct {
 	Description *string   `json:"description"`
+	From        *int64    `json:"from,omitempty"`
 	IsDone      *bool     `json:"is_done"`
 	Priority    *Priority `json:"priority,omitempty"`
+	Size        *int64    `json:"size,omitempty"`
 }
 
 // CreateTaskJSONBody defines parameters for CreateTask.

@@ -1,10 +1,10 @@
 package postgresql
 
 import (
-	"database/sql"
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sanLimbu/todo-api/internal"
 	"github.com/sanLimbu/todo-api/internal/postgresql/db"
 )
@@ -27,8 +27,8 @@ func convertPriority(p db.Priority) (internal.Priority, error) {
 }
 
 // newNullTime creates a sql.NullTime from a time.Time.
-func newNullTime(t time.Time) sql.NullTime {
-	return sql.NullTime{
+func newTimeStamp(t time.Time) pgtype.Timestamp {
+	return pgtype.Timestamp{
 		Time:  t,
 		Valid: !t.IsZero(),
 	}
