@@ -25,7 +25,7 @@ func NewOpenAPI3() openapi3.T {
 				URL:  "https://opensource.org/licenses/MIT",
 			},
 			Contact: &openapi3.Contact{
-				URL: "https://github.com/sanLimbu/todo-api-microservice",
+				URL: "https://github.com/sanLimbu/todo-api",
 			},
 		},
 		Servers: openapi3.Servers{

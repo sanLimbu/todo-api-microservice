@@ -131,7 +131,7 @@ components:
       type: object
 info:
   contact:
-    url: https://github.com/sanLimbu/todo-api-microservice
+    url: https://github.com/sanLimbu/todo-api
   description: REST APIs used for interacting with the ToDo Service
   license:
     name: MIT

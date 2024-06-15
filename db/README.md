@@ -23,7 +23,7 @@ Run:
 ```
 tern migrate \
     --migrations "db/migrations/" \
-    --conn-string "postgres://user:password@localhost:5432/todo?sslmode=disable"
+    --conn-string "postgres://user:password@localhost:5432/dbname?sslmode=disable"
 ```
 
 Create:

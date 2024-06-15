@@ -7,7 +7,7 @@ COPY . .
 RUN go mod download
 
 RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -ldflags "-extldflags -static" \
-      github.com/sanLimbu/todo-api-microservice/cmd/rest-server
+      github.com/sanLimbu/todo-api/cmd/rest-server
 
 RUN CGO_ENABLED=1 GOOS=linux go install -a -installsuffix cgo -ldflags "-extldflags -static" \
       github.com/jackc/tern/v2@v2.1.1

@@ -10,8 +10,10 @@ import (
 	"github.com/streadway/amqp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.15.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
 )
+
+const otelName = "github.com/sanLimbu/todo-api/internal/rabbitmq"
 
 //Task represents the repository used for publishing Task records.
 type Task struct {
@@ -42,8 +44,7 @@ func (t *Task) Updated(ctx context.Context, task internal.Task) error {
 
 func (t *Task) publish(ctx context.Context, spanName, routingKey string, e interface{}) error {
 
-	tracer := otel.Tracer("rabbitmq")
-	ctx, span := tracer.Start(ctx, spanName)
+	_, span := otel.Tracer(otelName).Start(ctx, spanName)
 
 	//ctx, span := trace.SpanFromContext(ctx).Tracer().Start(ctx, spanName)
 	defer span.End()

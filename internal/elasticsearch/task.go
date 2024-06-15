@@ -15,7 +15,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const otelName = "github.com/sanLimbu/todo-api-microservice/internal/elasticsearch"
+const otelName = "github.com/sanLimbu/todo-api/internal/elasticsearch"
 
 //Task represents the repository used for interacting with Task records
 type Task struct {
