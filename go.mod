@@ -5,7 +5,7 @@ go 1.22.0
 require (
 	github.com/confluentinc/confluent-kafka-go v1.9.2
 	github.com/elastic/go-elasticsearch/v7 v7.17.10
-	github.com/getkin/kin-openapi v0.124.0
+	github.com/getkin/kin-openapi v0.114.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-chi/chi/v5 v5.0.12
 	github.com/go-chi/render v1.0.3
