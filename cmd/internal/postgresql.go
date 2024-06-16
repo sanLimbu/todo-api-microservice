@@ -7,13 +7,13 @@ import (
 	"net/url"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/sanLimbu/todo-api/internal"
 	envvar "github.com/sanLimbu/todo-api/internal/envar"
 )
 
-//NewPostgresSQL instantiates the PostgreSQL database using configuration defined in environment variables.
-
+// NewPostgreSQL instantiates the PostgreSQL database using configuration defined in environment variables.
 func NewPostgreSQL(conf *envvar.Configuration) (*pgxpool.Pool, error) {
 	get := func(v string) string {
 		res, err := conf.Get(v)
@@ -44,7 +44,7 @@ func NewPostgreSQL(conf *envvar.Configuration) (*pgxpool.Pool, error) {
 
 	pool, err := pgxpool.New(context.Background(), dsn.String())
 	if err != nil {
-		return nil, internal.WrapErrorf(err, internal.ErrorCodeUnkown, "pgxpool.Connect")
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeUnkown, "pgxpool.New")
 	}
 
 	if err := pool.Ping(context.Background()); err != nil {
@@ -52,5 +52,4 @@ func NewPostgreSQL(conf *envvar.Configuration) (*pgxpool.Pool, error) {
 	}
 
 	return pool, nil
-
 }
