@@ -18,6 +18,7 @@ import (
 	esv7 "github.com/elastic/go-elasticsearch/v7"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	rv8 "github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riandyrn/otelchi"
 	"github.com/sanLimbu/todo-api/cmd/internal"
@@ -85,6 +86,11 @@ func run(env, address string) (<-chan error, error) {
 		return nil, internaldomain.WrapErrorf(err, internaldomain.ErrorCodeUnkown, "internal.NewKafkaProducer")
 	}
 
+	rdb, err := internal.NewRedis(conf)
+	if err != nil {
+		return nil, internaldomain.WrapErrorf(err, internaldomain.ErrorCodeUnkown, "internal.NewRedis")
+	}
+
 	promExporter, err := internal.NewOTExporter(conf)
 	if err != nil {
 		return nil, internaldomain.WrapErrorf(err, internaldomain.ErrorCodeUnkown, "internal.NewOTExporter")
@@ -107,6 +113,8 @@ func run(env, address string) (<-chan error, error) {
 		Kafka:         kafka,
 		Metrics:       promExporter,
 		Middlewares:   []func(next http.Handler) http.Handler{otelchi.Middleware("todo-api-server"), logging},
+		Redis:         rdb,
+		Logger:        logger,
 	})
 
 	if err != nil {
@@ -164,10 +172,11 @@ type serverConfig struct {
 	DB            *pgxpool.Pool
 	ElasticSearch *esv7.Client
 	Kafka         *internal.KafkaProducer
-	//RabbitMQ *internal.RabbitMQ
-	Metrics     http.Handler
-	Middlewares []func(next http.Handler) http.Handler
-	Logger      *zap.Logger
+	RabbitMQ      *internal.RabbitMQ
+	Redis         *rv8.Client
+	Metrics       http.Handler
+	Middlewares   []func(next http.Handler) http.Handler
+	Logger        *zap.Logger
 }
 
 func newServer(conf serverConfig) (*http.Server, error) {

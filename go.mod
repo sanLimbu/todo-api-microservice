@@ -60,6 +60,7 @@ require (
 	github.com/armon/go-radix v1.0.0 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/bradfitz/gomemcache v0.0.0-20230905024940-24af94b03874
 	github.com/cenkalti/backoff/v3 v3.1.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/didip/tollbooth/v6 v6.1.2
