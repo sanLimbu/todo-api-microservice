@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/bradfitz/gomemcache/memcache"
 	"github.com/didip/tollbooth/v6"
 	"github.com/didip/tollbooth/v6/limiter"
 	esv7 "github.com/elastic/go-elasticsearch/v7"
@@ -25,8 +26,9 @@ import (
 	internaldomain "github.com/sanLimbu/todo-api/internal"
 	"github.com/sanLimbu/todo-api/internal/elasticsearch"
 	envvar "github.com/sanLimbu/todo-api/internal/envar"
-	"github.com/sanLimbu/todo-api/internal/kafka"
+	"github.com/sanLimbu/todo-api/internal/memcached"
 	"github.com/sanLimbu/todo-api/internal/postgresql"
+	"github.com/sanLimbu/todo-api/internal/redis"
 	"github.com/sanLimbu/todo-api/internal/rest"
 	"github.com/sanLimbu/todo-api/internal/service"
 	"go.uber.org/zap"
@@ -81,16 +83,25 @@ func run(env, address string) (<-chan error, error) {
 		return nil, internaldomain.WrapErrorf(err, internaldomain.ErrorCodeUnkown, "internal.NewElasticSearch")
 	}
 
-	kafka, err := internal.NewKafkaProducer(conf)
-	if err != nil {
-		return nil, internaldomain.WrapErrorf(err, internaldomain.ErrorCodeUnkown, "internal.NewKafkaProducer")
-	}
+	// kafka, err := internal.NewKafkaProducer(conf)
+	// if err != nil {
+	// 	return nil, internaldomain.WrapErrorf(err, internaldomain.ErrorCodeUnkown, "internal.NewKafkaProducer")
+	// }
 
 	rdb, err := internal.NewRedis(conf)
 	if err != nil {
 		return nil, internaldomain.WrapErrorf(err, internaldomain.ErrorCodeUnkown, "internal.NewRedis")
 	}
 
+	memcached, err := internal.NewMemcached(conf)
+	if err != nil {
+		return nil, internaldomain.WrapErrorf(err, internaldomain.ErrorCodeUnkown, "internal.NewMemcached")
+	}
+
+	// rmq, err := internal.NewRabbitMQ(conf)
+	// if err != nil {
+	// 	return nil, internaldomain.WrapErrorf(err, internaldomain.ErrorCodeUnkown, "internal.NewRabbitMQ")
+	// }
 	promExporter, err := internal.NewOTExporter(conf)
 	if err != nil {
 		return nil, internaldomain.WrapErrorf(err, internaldomain.ErrorCodeUnkown, "internal.NewOTExporter")
@@ -110,11 +121,13 @@ func run(env, address string) (<-chan error, error) {
 		Address:       address,
 		DB:            pool,
 		ElasticSearch: es,
-		Kafka:         kafka,
-		Metrics:       promExporter,
-		Middlewares:   []func(next http.Handler) http.Handler{otelchi.Middleware("todo-api-server"), logging},
-		Redis:         rdb,
-		Logger:        logger,
+		//	Kafka:         kafka,
+		//RabbitMQ:    rmq,
+		Metrics:     promExporter,
+		Middlewares: []func(next http.Handler) http.Handler{otelchi.Middleware("todo-api-server"), logging},
+		Redis:       rdb,
+		Logger:      logger,
+		Memcached:   memcached,
 	})
 
 	if err != nil {
@@ -171,12 +184,13 @@ type serverConfig struct {
 	Address       string
 	DB            *pgxpool.Pool
 	ElasticSearch *esv7.Client
-	Kafka         *internal.KafkaProducer
-	RabbitMQ      *internal.RabbitMQ
-	Redis         *rv8.Client
-	Metrics       http.Handler
-	Middlewares   []func(next http.Handler) http.Handler
-	Logger        *zap.Logger
+	// Kafka         *internal.KafkaProducer
+	// RabbitMQ      *internal.RabbitMQ
+	Redis       *rv8.Client
+	Metrics     http.Handler
+	Middlewares []func(next http.Handler) http.Handler
+	Logger      *zap.Logger
+	Memcached   *memcache.Client
 }
 
 func newServer(conf serverConfig) (*http.Server, error) {
@@ -187,15 +201,21 @@ func newServer(conf serverConfig) (*http.Server, error) {
 	}
 
 	repo := postgresql.NewTask(conf.DB)
+	mrepo := memcached.NewTask(conf.Memcached, repo, conf.Logger)
 	search := elasticsearch.NewTask(conf.ElasticSearch)
+	msearch := memcached.NewSearchableTask(conf.Memcached, search)
 
 	// msgBroker, err := rabbitmq.NewTask(conf.RabbitMQ.Channel)
 	// if err != nil {
 	// 	return nil, fmt.Errorf("rabbitmq.NewTask %w", err)
 	// }
 
-	msgBroker := kafka.NewTask(conf.Kafka.Producer, conf.Kafka.Topic)
-	svc := service.NewTask(conf.Logger, repo, search, msgBroker)
+	msgBroker := redis.NewTask(conf.Redis)
+
+	svc := service.NewTask(conf.Logger, mrepo, msearch, msgBroker)
+
+	// msgBroker := kafka.NewTask(conf.Kafka.Producer, conf.Kafka.Topic)
+	// svc := service.NewTask(conf.Logger, repo, search, msgBroker)
 
 	rest.RegisterOpenAPI(router)
 	rest.NewTaskHandler(svc).Register(router)
