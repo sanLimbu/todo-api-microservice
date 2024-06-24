@@ -1,0 +1,119 @@
+linters:
+  enable-all: true
+
+  disable:
+    - gofumpt        # Prefer `gofmt` rules / some rules conflict with `wsl`
+    - gomnd          # XXX: For now
+    - spancheck      # Calling End() is implemented as expected
+    # I disagree with the rationale behind these linters
+    - err113
+    - depguard
+    - musttag
+    - nonamedreturns
+    # The following are deprecated linters, added to avoid initial warning when running
+    - execinquery
+    # -
+    - mnd # Magic number
+
+linters-settings:
+  lll:
+    line-length: 130
+  gci:
+    sections:
+      - standard
+      - default
+      - prefix(github.com/sanLimbu/todo-api)
+    section-separators:
+      - newLine
+  exhaustruct:
+    include:
+      - 'github.com/sanLimbu/todo-api/internal.*Params'
+  ireturn:
+    allow:
+      - error
+      - stdlib
+      #
+      - 'go.opentelemetry.io/otel/trace.Span'
+  varnamelen:
+    max-distance: 10
+    ignore-type-assert-ok: true
+    ignore-map-index-ok: true
+    ignore-chan-recv-ok: true
+    ignore-decls:
+      - b bytes.Buffer
+      - h http.Handler
+      - id string
+      - ok bool
+      - r *http.Request
+      - w http.ResponseWriter
+  wrapcheck:
+    ignoreSigs:
+      - internaldomain.WrapErrorf(
+      - internaldomain.NewErrorf(
+      - internal.NewErrorf(
+      - internal.WrapErrorf(
+    ignorePackageGlobs:
+      - github.com/sanLimbu/todo-api/*
+  gosec:
+    excludes:
+      - G601 # "Implicit memory aliasing in for loop." Fixed in Go 1.22
+issues:
+  exclude-rules:
+    # All tests
+    - path: _test\.go
+      linters:
+        - cyclop
+        - errchkjson
+        - exhaustruct
+        - funlen
+        - goerr113
+        - lll
+        - nonamedreturns
+        - nosnakecase
+        - varnamelen
+        - wrapcheck
+    # Handles the C4 diagrams
+    - path: internal/doc/doc.go
+      linters:
+        - lll
+        - revive
+        - stylecheck
+    # Generates OpenAPI 3 documentation
+    - path: internal/rest/open_api.go
+      linters:
+        - funlen
+    # Final binaries
+    - path: cmd/
+      linters:
+        - cyclop
+        - funlen
+        - gocognit
+        - unparam
+    # Handles generating code from OpenAPI 3
+    - path: cmd/openapi-gen/main.go
+      linters:
+        - forbidigo
+    - path: cmd/internal/postgresql.go
+      linters:
+        - revive # blank-imports
+    # XXX: This will be reremove in future episodes when "exhaustruct" is enabled
+    - path: internal/postgresql/task.go
+      linters:
+        - lll
+    - path: internal/memcached/task.go
+      linters:
+        - lll
+    # Because of the env var testing and using t.Setenv
+    - path: internal/envvar/envvar_test.go
+      linters:
+        - paralleltest
+        - thelper
+        - tparallel
+    # Because these are tools
+    - path: internal/tools/tools.go
+      linters:
+        - typecheck
+    # Because go:generate
+    - path: internal/rest/open_api.go
+      linters:
+        - lll

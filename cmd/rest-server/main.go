@@ -4,7 +4,6 @@ import (
 	"context"
 	"embed"
 	"flag"
-	"fmt"
 	"io/fs"
 	"log"
 	"net/http"
@@ -131,7 +130,7 @@ func run(env, address string) (<-chan error, error) {
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("newServer %w", err)
+		return nil, internaldomain.WrapErrorf(err, internaldomain.ErrorCodeUnkown, "newServer")
 	}
 
 	errC := make(chan error, 1)
@@ -149,8 +148,9 @@ func run(env, address string) (<-chan error, error) {
 		ctxTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 
 		defer func() {
-			logger.Sync()
+			_ = logger.Sync()
 			pool.Close()
+			rdb.Close()
 			stop()
 			cancel()
 			close(errC)
@@ -184,13 +184,13 @@ type serverConfig struct {
 	Address       string
 	DB            *pgxpool.Pool
 	ElasticSearch *esv7.Client
-	// Kafka         *internal.KafkaProducer
-	// RabbitMQ      *internal.RabbitMQ
-	Redis       *rv8.Client
-	Metrics     http.Handler
-	Middlewares []func(next http.Handler) http.Handler
-	Logger      *zap.Logger
-	Memcached   *memcache.Client
+	Kafka         *internal.KafkaProducer
+	RabbitMQ      *internal.RabbitMQ
+	Redis         *rv8.Client
+	Metrics       http.Handler
+	Middlewares   []func(next http.Handler) http.Handler
+	Logger        *zap.Logger
+	Memcached     *memcache.Client
 }
 
 func newServer(conf serverConfig) (*http.Server, error) {
@@ -202,6 +202,7 @@ func newServer(conf serverConfig) (*http.Server, error) {
 
 	repo := postgresql.NewTask(conf.DB)
 	mrepo := memcached.NewTask(conf.Memcached, repo, conf.Logger)
+
 	search := elasticsearch.NewTask(conf.ElasticSearch)
 	msearch := memcached.NewSearchableTask(conf.Memcached, search)
 

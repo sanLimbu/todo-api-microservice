@@ -20,15 +20,18 @@ func NewPostgreSQL(conf *envvar.Configuration) (*pgxpool.Pool, error) {
 		if err != nil {
 			log.Fatalf("Couldn't get configuration value for %s: %s", v, err)
 		}
+
 		return res
 	}
 
+	// XXX: We will revisit this code in future episodes replacing it with another solution
 	databaseHost := get("DATABASE_HOST")
 	databasePort := get("DATABASE_PORT")
 	databaseUsername := get("DATABASE_USERNAME")
 	databasePassword := get("DATABASE_PASSWORD")
 	databaseName := get("DATABASE_NAME")
 	databaseSSLMode := get("DATABASE_SSLMODE")
+	// XXX: -
 
 	dsn := url.URL{
 		Scheme: "postgres",
@@ -44,7 +47,7 @@ func NewPostgreSQL(conf *envvar.Configuration) (*pgxpool.Pool, error) {
 
 	pool, err := pgxpool.New(context.Background(), dsn.String())
 	if err != nil {
-		return nil, internal.WrapErrorf(err, internal.ErrorCodeUnkown, "pgxpool.New")
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeUnkown, "pgxpool.Connect")
 	}
 
 	if err := pool.Ping(context.Background()); err != nil {
