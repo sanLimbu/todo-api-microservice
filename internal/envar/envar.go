@@ -39,7 +39,7 @@ func New(provider Provider) *Configuration {
 // the provider is used for getting the value.
 func (c *Configuration) Get(key string) (string, error) {
 	res := os.Getenv(key)
-	valSecret := os.Getenv(fmt.Sprintf("%s_SECURE", key))
+	valSecret := os.Getenv(key + "_SECURE")
 
 	if valSecret != "" {
 		valSecretRes, err := c.provider.Get(valSecret)

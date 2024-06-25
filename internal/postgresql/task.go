@@ -6,16 +6,11 @@ import (
 	"errors"
 
 	"github.com/sanLimbu/todo-api/internal"
-	"go.opentelemetry.io/otel"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/sanLimbu/todo-api/internal/postgresql/db"
 
 	"github.com/google/uuid"
 )
-
-const otelName = "github.com/sanLimbu/todo-api/internal/postgresql"
 
 //Task represents the repository used for interacting with Task records
 type Task struct {
@@ -27,14 +22,6 @@ func NewTask(d db.DBTX) *Task {
 	return &Task{
 		q: db.New(d),
 	}
-}
-
-func newOTELSpan(ctx context.Context, name string) trace.Span {
-	_, span := otel.Tracer(otelName).Start(ctx, name)
-
-	span.SetAttributes(semconv.DBSystemPostgreSQL)
-
-	return span
 }
 
 //Create inserts a new task record.

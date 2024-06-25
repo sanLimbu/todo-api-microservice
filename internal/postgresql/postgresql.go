@@ -1,15 +1,21 @@
 package postgresql
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sanLimbu/todo-api/internal"
 	"github.com/sanLimbu/todo-api/internal/postgresql/db"
+	"go.opentelemetry.io/otel"
+	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	"go.opentelemetry.io/otel/trace"
 )
 
 //go:generate sqlc generate
+
+const otelName = "github.com/sanLimbu/todo-api/internal/postgresql"
 
 func convertPriority(p db.Priority) (internal.Priority, error) {
 	switch p {
@@ -46,4 +52,12 @@ func newPriority(p internal.Priority) db.Priority {
 		return db.PriorityHigh
 	}
 	return "invalid"
+}
+
+func newOTELSpan(ctx context.Context, name string) trace.Span {
+	_, span := otel.Tracer(otelName).Start(ctx, name)
+
+	span.SetAttributes(semconv.DBSystemPostgreSQL)
+
+	return span
 }
