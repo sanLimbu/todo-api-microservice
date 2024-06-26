@@ -1,3 +1,4 @@
+# For demo purposes
 services:
   rest-server:
     build:

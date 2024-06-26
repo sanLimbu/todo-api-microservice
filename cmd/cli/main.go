@@ -46,6 +46,7 @@ func main() {
 
 		//cREATE
 		priority := openapi3.Low
+
 		_, err := client.CreateTaskWithResponse(context.Background(),
 			openapi3.CreateTaskJSONRequestBody{
 				Dates: &openapi3.Dates{
@@ -68,7 +69,7 @@ func main() {
 //initTracer initializes OpenTelemetry tracing with Jaeger and stdout exporters
 func initTracer() {
 
-	jaegerEndpoint := "http;//localhost:14268/api/traces"
+	jaegerEndpoint := "http://localhost:14268/api/traces"
 
 	//Create a Jaeger exporter
 	jaegerExporter, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(jaegerEndpoint)))

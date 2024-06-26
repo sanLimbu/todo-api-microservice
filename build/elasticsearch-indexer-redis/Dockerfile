@@ -7,7 +7,7 @@ COPY . .
 RUN go mod download
 
 RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -ldflags "-extldflags -static" \
-      -o elasticsearch-indexer github.com/MarioCarrion/todo-api/cmd/elasticsearch-indexer-redis
+      -o elasticsearch-indexer github.com/sanLimbu/todo-api/cmd/elasticsearch-indexer-redis
 
 #-
 

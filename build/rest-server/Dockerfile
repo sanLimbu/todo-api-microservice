@@ -1,4 +1,4 @@
-FROM golang:1.22.3-bookworm AS builder
+FROM golang:1.22.4-bookworm AS builder
 
 
 WORKDIR /build/
@@ -8,7 +8,7 @@ COPY . .
 RUN go mod download
 
 RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -ldflags "-extldflags -static" \
-      github.com/MarioCarrion/todo-api/cmd/rest-server
+      github.com/sanLimbu/todo-api/cmd/rest-server
 
 RUN CGO_ENABLED=1 GOOS=linux go install -a -installsuffix cgo -ldflags "-extldflags -static" \
       github.com/jackc/tern/v2@v2.1.1

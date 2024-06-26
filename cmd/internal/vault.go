@@ -1,9 +1,9 @@
 package internal
 
 import (
-	"fmt"
 	"os"
 
+	"github.com/sanLimbu/todo-api/internal"
 	"github.com/sanLimbu/todo-api/internal/envar/vault"
 )
 
@@ -15,7 +15,8 @@ func NewVaultProvider() (*vault.Provider, error) {
 
 	provider, err := vault.New(vaultToken, vaultAddress, vaultPath)
 	if err != nil {
-		return nil, fmt.Errorf("vault.New %w", err)
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeUnkown, "vault.New ")
+
 	}
 
 	return provider, nil
