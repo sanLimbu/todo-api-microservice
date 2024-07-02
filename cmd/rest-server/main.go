@@ -222,7 +222,7 @@ func newServer(conf serverConfig) (*http.Server, error) {
 	rest.NewTaskHandler(svc).Register(router)
 
 	fsys, _ := fs.Sub(content, "static")
-	router.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(fsys))))
+	router.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.FS(fsys))))
 	router.Handle("/metrics", conf.Metrics)
 
 	lmt := tollbooth.NewLimiter(3, &limiter.ExpirableOptions{DefaultExpirationTTL: time.Second})
