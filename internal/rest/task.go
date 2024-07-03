@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/gorilla/mux"
 	"github.com/sanLimbu/todo-api/internal"
 )
 
@@ -142,16 +141,22 @@ func (t *TaskHandler) update(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		renderErrorResponse(w, r, "invalid request",
 			internal.WrapErrorf(err, internal.ErrorCodeInvalidArgument, "json decoder"))
+
 		return
 	}
+
 	defer r.Body.Close()
 
-	id, _ := mux.Vars(r)["id"]
+	// NOTE: Safe to ignore error, because it's always defined.
+	id := chi.URLParam(r, "id")
+
 	err := t.svc.Update(r.Context(), id, req.Description, req.Priority.Convert(), req.Dates.Convert(), req.IsDone)
 	if err != nil {
 		renderErrorResponse(w, r, "update failed", err)
+
 		return
 	}
+
 	renderResponse(w, r, &struct{}{}, http.StatusOK)
 }
 
